@@ -1,0 +1,14 @@
+{
+  "name": "counter-drone-tactical-dashboard",
+  "version": "1.0.0",
+  "description": "Counter-UAS Tactical C2 Digital Twin Simulation in Node.js",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "cors": "^2.8.5"
+  }
+}

@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>C-UAS Tactical C2 Command Twin | Minimalist Defense Edition</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700;800&family=Orbitron:wght@600;800;900&display=swap" rel="stylesheet">
+    <!-- Plotly.js -->
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- ── SLIM EXECUTIVE MISSION HEADER ── -->
+    <header class="mission-topbar">
+        <div class="topbar-left">
+            <div class="classification-tag">// UNCLASSIFIED // C2 DIGITAL TWIN //</div>
+            <div class="mission-callsign">
+                <span class="pulse-beacon green"></span>
+                <strong>OPERATION AEGIS</strong> &bull; SECTOR 7-G
+            </div>
+        </div>
+
+        <div class="topbar-center">
+            <nav class="executive-tabs">
+                <button class="nav-tab-btn active" data-tab="tab-map">🎯 TACTICAL RADAR</button>
+                <button class="nav-tab-btn" data-tab="tab-config">⚙️ SIMULATION LAB & FILTERS</button>
+                <button class="nav-tab-btn" data-tab="tab-analytics">📈 RF SPECTRUM & INTELLIGENCE</button>
+            </nav>
+        </div>
+
+        <div class="topbar-right">
+            <div class="audio-toggle" id="audioToggleBtn" title="Toggle Tactical Audio Feedback">
+                <span class="audio-icon">🔊</span> <span id="audioStatusText">AUDIO: ON</span>
+            </div>
+            <button id="openGuideBtn" class="btn-guide-header" title="Mission Knowledge Base">💡 GUIDE</button>
+            <div class="utc-clock">
+                <span class="clock-label">ZULU:</span>
+                <span id="utcClockDisplay" class="clock-time">00:00:00Z</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- ── MAIN FULL-WIDTH CONTAINER ── -->
+    <div class="main-container">
+        
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!--  TAB 1: MINIMALIST TACTICAL RADAR (PRIMARY SCREEN)             -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <section id="tab-map" class="tab-pane active">
+            <!-- Executive 4-Metric Bar -->
+            <div class="executive-metrics-bar">
+                <div class="exec-card" id="execStatusCard">
+                    <div class="exec-label">AIRSPACE STATUS</div>
+                    <div class="status-badge clear" id="statusBadge">
+                        <div class="pulse-dot"></div>
+                        <span id="badgeText">DEFCON 4: CLEAR</span>
+                    </div>
+                </div>
+
+                <div class="exec-card">
+                    <div class="exec-label">DISTANCE TO BASE</div>
+                    <div class="exec-val" id="execDistBase">450m</div>
+                    <div class="exec-sub">Closest Sensor Perimeter</div>
+                </div>
+
+                <div class="exec-card">
+                    <div class="exec-label">PREDICTED TIME-TO-BREACH</div>
+                    <div class="exec-val highlight-amber" id="execTtb">CLEAR</div>
+                    <div class="exec-sub">CTRV EKF Trajectory Projection</div>
+                </div>
+
+                <div class="exec-card">
+                    <div class="exec-label">RF LINK QUALITY</div>
+                    <div class="exec-val highlight-cyan" id="execLq">100%</div>
+                    <div class="exec-sub">Telemetry Success &bull; SNR +40dB</div>
+                </div>
+
+                <div class="exec-actions">
+                    <div class="view-mode-toggle">
+                        <button id="view2dBtn" class="view-btn active">2D RADAR</button>
+                        <button id="view3dBtn" class="view-btn">3D VOLUMETRIC</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tactical Radar Viewport -->
+            <div class="radar-viewport" id="radarViewport">
+                <!-- Floating HUD Overlays -->
+                <div class="radar-hud-overlay">
+                    <div class="hud-corner top-left">
+                        <span class="hud-tag">SWARM C2</span>
+                        <span id="hudTargetPos">ACTIVE TARGETS: 1</span>
+                    </div>
+                    <div class="hud-corner top-right">
+                        DEFCON: <span id="hudDefcon">DEFCON 4 (CLEAR)</span>
+                    </div>
+                    <div class="hud-corner bottom-left">
+                        RANGES: 200m &bull; 400m &bull; 600m
+                    </div>
+                    <div class="hud-corner bottom-right">
+                        HORIZON: <span id="hudHorizonTag">+5.0s EKF</span>
+                    </div>
+                </div>
+                <div id="tacticalMapChart" class="plotly-chart-full"></div>
+            </div>
+
+            <!-- Swarm Target Priority Ranking Strip -->
+            <div class="swarm-threat-strip" id="swarmThreatStrip" style="margin-bottom: 12px; display: flex; gap: 8px; overflow-x: auto;">
+                <!-- Populated dynamically with live threat cards -->
+            </div>
+
+            <!-- Floating Slim Playback Bar -->
+            <div class="playback-bar">
+                <div class="playback-controls">
+                    <button id="playBtn" class="play-btn" title="Play / Pause Flight Animation">▶ PLAY</button>
+                    <button id="resetPlayBtn" class="scrub-btn" title="Reset to Start">⏮</button>
+                    <button id="stepPlayBtn" class="scrub-btn" title="Step Forward">⏭</button>
+                    
+                    <div class="speed-selector">
+                        <button class="speed-btn active" data-speed="1">1x</button>
+                        <button class="speed-btn" data-speed="2">2x</button>
+                        <button class="speed-btn" data-speed="5">5x</button>
+                    </div>
+                </div>
+
+                <div class="scrubber-track">
+                    <span class="time-label">T = <strong id="playbackTimeDisplay">0.00s</strong></span>
+                    <input type="range" id="timeScrubber" min="0" max="100" value="100" step="1">
+                    <span class="time-max" id="playbackTimeMax">45.0s</span>
+                </div>
+
+                <div class="live-telemetry">
+                    <div class="telemetry-pill" id="livePositionPill">POS: (0.0, 0.0, 50m)</div>
+                    <div class="telemetry-pill" id="liveSensorsPill">SENSORS: 8 ACTIVE</div>
+                    <div class="telemetry-pill" id="liveSnrPill">SNR: +40.0 dB</div>
+                    <div class="telemetry-pill" id="liveTtbPill" style="color:#ffaa00;">PREDICTED TTB: NONE</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!--  TAB 2: SIMULATION LAB & CONFIGURATION FILTERS                 -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <section id="tab-config" class="tab-pane">
+            <div class="lab-header">
+                <div>
+                    <h2>⚙️ SIMULATION LABORATORY & MISSION PARAMETERS</h2>
+                    <p>Adjust environmental kinematics, Electronic Warfare jamming countermeasures, sensor networks, and predictive Kalman filters.</p>
+                </div>
+                <button id="runSimBtn" class="btn-execute-large">🚀 RUN & APPLY SIMULATION</button>
+            </div>
+
+            <!-- Quick Presets -->
+            <div class="lab-preset-strip">
+                <span class="preset-label">SCENARIO PRESETS:</span>
+                <button class="btn-preset active" data-preset="clean">🎯 Standard Incursion</button>
+                <button class="btn-preset" data-preset="pincer">🐝 Pincer Swarm Attack</button>
+                <button class="btn-preset" data-preset="decoy">🎭 Decoy & Strike Swarm</button>
+                <button class="btn-preset" data-preset="saturation">💥 4-Drone Saturation</button>
+                <button class="btn-preset" data-preset="barrage">⚡ Barrage Jam Attack</button>
+                <button class="btn-preset" data-preset="reactive">🔄 Reactive Jam Duel</button>
+            </div>
+
+            <!-- Configuration Filter Grid -->
+            <div class="config-grid">
+                <!-- Card 1: Threat Swarm & Kinematics -->
+                <div class="config-card">
+                    <div class="config-card-header">
+                        <span class="card-icon">🐝</span>
+                        <h3>1. Threat Swarm & Flight Formations</h3>
+                    </div>
+                    <div class="config-item">
+                        <label for="swarmFormation">Swarm Incursion Formation</label>
+                        <select id="swarmFormation">
+                            <option value="Single" selected>Single Hostile (Baseline Incursion)</option>
+                            <option value="Pincer">Pincer Attack (2-Axis Flanking Incursion)</option>
+                            <option value="Decoy">Decoy & Strike (3-Drone Split Feint)</option>
+                            <option value="Saturation">Full Saturation (4-Drone Convergence)</option>
+                        </select>
+                    </div>
+                    <div class="config-item">
+                        <div class="label-row">
+                            <label for="droneSpeed">Swarm Cruise Speed</label>
+                            <span class="val-badge"><span id="droneSpeedVal">15</span> m/s</span>
+                        </div>
+                        <input type="range" id="droneSpeed" min="5" max="40" value="15" step="1">
+                    </div>
+                    <div class="config-item">
+                        <div class="label-row">
+                            <label for="droneAltitude">Flight Altitude (Z)</label>
+                            <span class="val-badge"><span id="droneAltitudeVal">50</span> m</span>
+                        </div>
+                        <input type="range" id="droneAltitude" min="10" max="200" value="50" step="5">
+                    </div>
+                </div>
+
+                <!-- Card 2: FHSS & EW Jamming -->
+                <div class="config-card">
+                    <div class="config-card-header">
+                        <span class="card-icon">⚡</span>
+                        <h3>2. RF Comms & Electronic Warfare (EW)</h3>
+                    </div>
+                    <div class="config-item">
+                        <div class="label-row">
+                            <label for="nChannels">FHSS Hop Channels (N)</label>
+                            <span class="val-badge"><span id="nChannelsVal">50</span> Channels</span>
+                        </div>
+                        <input type="range" id="nChannels" min="10" max="200" value="50" step="5">
+                    </div>
+                    <div class="config-item">
+                        <div class="label-row">
+                            <label for="hopRate">Hop Dwell Rate</label>
+                            <span class="val-badge"><span id="hopRateVal">100</span> hops/s</span>
+                        </div>
+                        <input type="range" id="hopRate" min="10" max="500" value="100" step="10">
+                    </div>
+                    <div class="config-item">
+                        <label for="jammerType">Defensive Jammer Countermeasure</label>
+                        <select id="jammerType">
+                            <option value="None" selected>None (Clean Baseline)</option>
+                            <option value="Directional">Directional Beamforming (Parabolic Horn)</option>
+                            <option value="Barrage">Barrage Jammer (Broadband Noise)</option>
+                            <option value="Sweep">Sweep Jammer (Fast Frequency Cycle)</option>
+                            <option value="Reactive">Reactive Jammer (Cognitive Hop-Follower)</option>
+                        </select>
+                    </div>
+                    <div class="config-item" id="jamPowerContainer" style="display:none;">
+                        <div class="label-row">
+                            <label for="jamPower">Base Jammer Output Power</label>
+                            <span class="val-badge danger"><span id="jamPowerVal">30</span> dBm</span>
+                        </div>
+                        <input type="range" id="jamPower" min="10" max="50" value="30" step="1">
+                    </div>
+                    <div class="config-item" id="beamwidthContainer" style="display:none;">
+                        <div class="label-row">
+                            <label for="beamWidth">Antenna Beamwidth (HPBW)</label>
+                            <span class="val-badge"><span id="beamWidthVal">28</span>°</span>
+                        </div>
+                        <input type="range" id="beamWidth" min="15" max="60" value="28" step="1">
+                    </div>
+                </div>
+
+                <!-- Card 3: Sensor Network -->
+                <div class="config-card">
+                    <div class="config-card-header">
+                        <span class="card-icon">📡</span>
+                        <h3>3. Passive RF Sensor Perimeter</h3>
+                    </div>
+                    <div class="config-item">
+                        <div class="label-row">
+                            <label for="nSensors">Active Sensor Grid Nodes</label>
+                            <span class="val-badge"><span id="nSensorsVal">8</span> Nodes</span>
+                        </div>
+                        <input type="range" id="nSensors" min="4" max="16" value="8" step="1">
+                    </div>
+                    <div class="config-item">
+                        <div class="label-row">
+                            <label for="sensorRadius">Perimeter Ring Radius</label>
+                            <span class="val-badge"><span id="sensorRadiusVal">400</span> m</span>
+                        </div>
+                        <input type="range" id="sensorRadius" min="200" max="800" value="400" step="25">
+                    </div>
+                    <div class="config-item">
+                        <div class="label-row">
+                            <label for="sensorRange">Sensor Detection Cutoff</label>
+                            <span class="val-badge"><span id="sensorRangeVal">600</span> m</span>
+                        </div>
+                        <input type="range" id="sensorRange" min="300" max="1000" value="600" step="25">
+                    </div>
+                    <div class="config-item">
+                        <div class="label-row">
+                            <label for="noiseStd">RSSI Gaussian Noise σ</label>
+                            <span class="val-badge"><span id="noiseStdVal">3.0</span> dB</span>
+                        </div>
+                        <input type="range" id="noiseStd" min="0.5" max="10" value="3.0" step="0.5">
+                    </div>
+                </div>
+
+                <!-- Card 4: Trajectory Prediction & Engine -->
+                <div class="config-card">
+                    <div class="config-card-header">
+                        <span class="card-icon">🔮</span>
+                        <h3>4. Trajectory Prediction & Solver</h3>
+                    </div>
+                    <div class="config-item">
+                        <div class="label-row">
+                            <label for="predHorizon">Prediction Horizon</label>
+                            <span class="val-badge"><span id="predHorizonVal">5.0</span> s</span>
+                        </div>
+                        <input type="range" id="predHorizon" min="1.0" max="10.0" value="5.0" step="0.5">
+                    </div>
+                    <div class="config-item">
+                        <label for="predModel">Estimator Algorithm</label>
+                        <select id="predModel">
+                            <option value="ctrv" selected>CTRV Extended Kalman Filter (EKF)</option>
+                            <option value="linear">Constant Velocity Extrapolator</option>
+                            <option value="accel">2nd-Order Acceleration Curve</option>
+                        </select>
+                    </div>
+                    <div class="config-item">
+                        <label for="simDt">Simulation Clock Delta (Δt)</label>
+                        <select id="simDt">
+                            <option value="0.05">0.05 s (High Precision - 20 Hz)</option>
+                            <option value="0.1" selected>0.10 s (Nominal - 10 Hz)</option>
+                            <option value="0.2">0.20 s (Fast - 5 Hz)</option>
+                        </select>
+                    </div>
+                    <div class="config-item">
+                        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-top:8px;">
+                            <input type="checkbox" id="showUncertaintyCone" checked style="cursor:pointer;">
+                            <span>Render 95% Confidence Uncertainty Cone</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Card 5: Autonomous Kinetic Interceptor -->
+                <div class="config-card" style="grid-column: span 2;">
+                    <div class="config-card-header">
+                        <span class="card-icon">🚀</span>
+                        <h3>5. Autonomous Kinetic Interceptor (Dogfight Hard-Kill)</h3>
+                    </div>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px;">
+                        <div class="config-item">
+                            <div class="label-row">
+                                <label for="interceptorSpeed">Interceptor Top Speed</label>
+                                <span class="val-badge"><span id="interceptorSpeedVal">35</span> m/s</span>
+                            </div>
+                            <input type="range" id="interceptorSpeed" min="20" max="60" value="35" step="1">
+                        </div>
+                        <div class="config-item">
+                            <div class="label-row">
+                                <label for="interceptorNavN">PN Guidance Constant (N)</label>
+                                <span class="val-badge"><span id="interceptorNavNVal">3.5</span></span>
+                            </div>
+                            <input type="range" id="interceptorNavN" min="2.0" max="6.0" value="3.5" step="0.1">
+                        </div>
+                        <div class="config-item">
+                            <label for="interceptorAutoLaunch">Auto-Scramble Trigger</label>
+                            <select id="interceptorAutoLaunch">
+                                <option value="warning" selected>On DEFCON 2 Perimeter Breach</option>
+                                <option value="info">On 100m Buffer Incursion</option>
+                                <option value="immediate">Immediate at T=0s</option>
+                                <option value="disabled">Disabled (EW Only)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!--  TAB 3: DETAILED RF SPECTRUM & INTELLIGENCE LOGS               -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <section id="tab-analytics" class="tab-pane">
+            <!-- After-Action Report (AAR) Executive Scorecard -->
+            <div class="aar-card-banner" id="aarBanner" style="background: var(--bg-panel); border: 1px solid var(--border-bright); border-radius: 12px; padding: 16px 20px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 6px 25px rgba(0,0,0,0.5);">
+                <div style="display: flex; align-items: center; gap: 16px;">
+                    <div id="aarGradeBadge" style="background: rgba(0, 255, 102, 0.15); border: 2px solid var(--accent-emerald); color: var(--accent-emerald); font-family: var(--font-display); font-size: 2.2rem; font-weight: 900; width: 68px; height: 68px; border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 20px rgba(0,255,102,0.35);">
+                        A+
+                    </div>
+                    <div>
+                        <div style="font-family: var(--font-display); font-size: 1.1rem; color: var(--accent-cyan); letter-spacing: 0.8px;">
+                            MISSION AFTER-ACTION REPORT (AAR)
+                        </div>
+                        <div id="aarSummaryText" style="font-family: var(--font-mono); font-size: 0.76rem; color: var(--text-secondary); margin-top: 3px;">
+                            AIRSPACE INTEGRITY: <strong class="cyan">100%</strong> &bull; INTERCEPT: <strong class="emerald">SUCCESSFUL</strong> &bull; EW DENIAL: <strong class="amber">95%</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 8px;">
+                    <button id="exportCsvBtn" class="btn-preset" style="color:var(--accent-cyan); border-color:var(--accent-cyan);">📥 EXPORT CSV TELEMETRY</button>
+                    <button id="exportJsonBtn" class="btn-preset" style="color:var(--accent-purple); border-color:var(--accent-purple);">📦 EXPORT JSON DATASET</button>
+                </div>
+            </div>
+
+            <!-- Telemetry Gauges Row -->
+            <div class="analytics-gauges-row">
+                <div class="gauge-card">
+                    <div class="gauge-svg-container">
+                        <svg class="circular-gauge" viewBox="0 0 100 100">
+                            <circle class="gauge-bg" cx="50" cy="50" r="40"></circle>
+                            <circle id="gaugeLqCircle" class="gauge-progress lq" cx="50" cy="50" r="40" stroke-dasharray="251.2" stroke-dashoffset="0"></circle>
+                        </svg>
+                        <div class="gauge-inner-val" id="gaugeLqText">100%</div>
+                    </div>
+                    <div class="gauge-meta">
+                        <div class="gauge-title">RF LINK QUALITY</div>
+                        <div class="gauge-sub">Packet delivery rate</div>
+                    </div>
+                </div>
+
+                <div class="gauge-card">
+                    <div class="gauge-svg-container">
+                        <svg class="circular-gauge" viewBox="0 0 100 100">
+                            <circle class="gauge-bg" cx="50" cy="50" r="40"></circle>
+                            <circle id="gaugeSnrCircle" class="gauge-progress snr" cx="50" cy="50" r="40" stroke-dasharray="251.2" stroke-dashoffset="50"></circle>
+                        </svg>
+                        <div class="gauge-inner-val" id="gaugeSnrText">+40dB</div>
+                    </div>
+                    <div class="gauge-meta">
+                        <div class="gauge-title">SIGNAL-TO-NOISE (SNR)</div>
+                        <div class="gauge-sub">Interference threshold: 10dB</div>
+                    </div>
+                </div>
+
+                <div class="gauge-card">
+                    <div class="gauge-svg-container">
+                        <svg class="circular-gauge" viewBox="0 0 100 100">
+                            <circle class="gauge-bg" cx="50" cy="50" r="40"></circle>
+                            <circle id="gaugeAccCircle" class="gauge-progress acc" cx="50" cy="50" r="40" stroke-dasharray="251.2" stroke-dashoffset="30"></circle>
+                        </svg>
+                        <div class="gauge-inner-val" id="gaugeAccText">95%</div>
+                    </div>
+                    <div class="gauge-meta">
+                        <div class="gauge-title">LOCALIZATION GDOP</div>
+                        <div class="gauge-sub">Geometric confidence</div>
+                    </div>
+                </div>
+
+                <div class="kpi-mini-card">
+                    <div class="kpi-label">MEAN TRACK ERROR</div>
+                    <div class="kpi-value" id="kpiMeanErr">0.0m</div>
+                    <div class="kpi-sub">Euclidean deviation</div>
+                </div>
+
+                <div class="kpi-mini-card warn">
+                    <div class="kpi-label">MAX ERROR PEAK</div>
+                    <div class="kpi-value" id="kpiMaxErr">0.0m</div>
+                    <div class="kpi-sub">Worst trilateration fix</div>
+                </div>
+
+                <div class="kpi-mini-card" id="kpiCritCard">
+                    <div class="kpi-label">CRITICAL ALERTS</div>
+                    <div class="kpi-value" id="kpiCrit">0</div>
+                    <div class="kpi-sub">Persisting inside zone</div>
+                </div>
+            </div>
+
+            <!-- Diagnostic Charts Grid -->
+            <div class="analytics-grid">
+                <div class="chart-card">
+                    <div id="linkQualityChart" class="plotly-chart-sm"></div>
+                </div>
+                <div class="chart-card">
+                    <div id="trackingErrorChart" class="plotly-chart-sm"></div>
+                </div>
+            </div>
+
+            <!-- GDOP Battlespace Coverage Heatmap -->
+            <div class="chart-card mt-4">
+                <div id="coverageHeatmapChart" class="plotly-chart-md"></div>
+            </div>
+
+            <!-- FHSS Waterfall Spectrogram -->
+            <div class="chart-card mt-4">
+                <div id="waterfallChart" class="plotly-chart-md"></div>
+            </div>
+
+            <!-- Threat Intelligence Event Table -->
+            <div class="threat-log-section mt-4">
+                <div class="alert-summary-row">
+                    <div class="alert-stat info-box">
+                        <span class="stat-title">🔵 INFO ALERTS (BUFFER)</span>
+                        <h3 id="statInfo">0</h3>
+                    </div>
+                    <div class="alert-stat warn-box">
+                        <span class="stat-title">🟡 WARNING ALERTS (CROSSING)</span>
+                        <h3 id="statWarn">0</h3>
+                    </div>
+                    <div class="alert-stat crit-box">
+                        <span class="stat-title">🔴 CRITICAL ALERTS (PERSISTING)</span>
+                        <h3 id="statCrit">0</h3>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="tactical-table" id="alertsTable">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Classification</th>
+                                <th>Estimated Grid Coordinates</th>
+                                <th>Tactical Intelligence & Action Assessment</th>
+                            </tr>
+                        </thead>
+                        <tbody id="alertsTableBody">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── FOOTER ── -->
+        <footer class="c2-footer">
+            <span class="footer-dot"></span> AIR DEFENSE SIMULATION TWIN &bull; MINIMALIST C2 ARCHITECTURE &bull; ALL RIGHTS RESERVED
+        </footer>
+    </div>
+
+    <!-- ── HOW IT WORKS EXPLAINER MODAL ── -->
+    <div id="guideModal" class="modal-backdrop">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>💡 Mission Intelligence & Physics Guide</h2>
+                <button id="closeGuideBtn" class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="guide-card">
+                    <h3>1. 📡 Layer 1: RF Communications & FHSS Hopping</h3>
+                    <p>The hostile drone communicates using <strong>Frequency Hopping Spread Spectrum (FHSS)</strong> across 50+ pseudorandom radio channels to resist signal interception and single-frequency spot jamming.</p>
+                </div>
+                <div class="guide-card">
+                    <h3>2. ⚡ Layer 1: Electronic Warfare (EW) Jamming</h3>
+                    <p>Defensive electronic countermeasures disrupt telemetry. <strong>Barrage</strong> spreads power uniformly across the band, <strong>Sweep</strong> cycles across frequencies at high speed, and <strong>Reactive</strong> cognitively locks onto active hops within dwell time.</p>
+                </div>
+                <div class="guide-card">
+                    <h3>3. 🛰️ Layer 2: Free-Space Path Loss & RSSI Ranging</h3>
+                    <p>Passive sensor nodes measure Received Signal Strength ($RSSI$). Distance is derived via ITU Free-Space Path Loss: $RSSI = P_{tx} - 20\log_{10}(d) - 20\log_{10}(f) - 32.44 + \mathcal{N}(0, \sigma^2)$.</p>
+                </div>
+                <div class="guide-card">
+                    <h3>4. 🎯 Layer 2: Levenberg-Marquardt Multilateration</h3>
+                    <p>Using 3+ sensor range measurements, a non-linear least-squares optimization computes the drone's position fix $(X, Y)$ and evaluates <strong>Geometric Dilution of Precision (GDOP)</strong> to assess localization confidence.</p>
+                </div>
+                <div class="guide-card">
+                    <h3>5. 🔮 AI Trajectory Prediction & EKF Geofencing</h3>
+                    <p>The <strong>Constant Turn Rate and Velocity (CTRV)</strong> state estimator projects the drone's path forward up to 10 seconds, computing a dynamic 95% uncertainty cone and predicting boundary breaches in advance.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/engine.js"></script>
+    <script src="js/trajectoryPredictor.js"></script>
+    <script src="js/interceptor.js"></script>
+    <script src="js/swarmEngine.js"></script>
+    <script src="js/directionalJammer.js"></script>
+    <script src="js/analyticsEngine.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
